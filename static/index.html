@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mascot Pose Generator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #app { width: 480px; height: 680px; background: #fff; border-radius: 16px; border: 1px solid #e5e5e0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  #header { padding: 14px 18px; border-bottom: 1px solid #f0f0eb; background: #fafaf8; display: flex; align-items: center; gap: 10px; }
+  #header .icon { width: 34px; height: 34px; background: #eeedfe; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  #header h1 { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+  #header p { font-size: 12px; color: #888; margin-top: 1px; }
+  #status { margin-left: auto; font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #fff3cd; color: #856404; font-weight: 500; }
+  #status.ready { background: #d1f5e4; color: #0a6640; }
+
+  #setup { padding: 10px 14px; border-bottom: 1px solid #f0f0eb; background: #fafaf8; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #setup label { font-size: 12px; color: #666; }
+  #upload-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; color: #444; display: flex; align-items: center; gap: 5px; }
+  #upload-btn:hover { background: #f5f5f0; }
+  #ref-thumb { width: 30px; height: 30px; border-radius: 6px; object-fit: cover; border: 1px solid #ddd; display: none; }
+  #upload-input { display: none; }
+
+  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { display: flex; gap: 9px; align-items: flex-start; }
+  .msg.user { flex-direction: row-reverse; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; margin-top: 2px; }
+  .bot .avatar { background: #e1f5ee; }
+  .user .avatar { background: #eeedfe; }
+  .bubble { max-width: 78%; padding: 10px 13px; border-radius: 12px; font-size: 14px; line-height: 1.55; }
+  .bot .bubble { background: #f5f5f0; color: #1a1a1a; border-radius: 4px 12px 12px 12px; }
+  .user .bubble { background: #534AB7; color: #fff; border-radius: 12px 4px 12px 12px; }
+  .gen-img { max-width: 210px; border-radius: 10px; margin-top: 8px; border: 1px solid #e5e5e0; display: block; }
+  .prompt-used { font-size: 11px; color: #aaa; margin-top: 5px; font-style: italic; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { font-size: 12px; padding: 5px 11px; border: 1px solid #e0e0da; border-radius: 20px; cursor: pointer; background: #fff; color: #555; transition: background 0.15s; }
+  .chip:hover { background: #f0f0ea; }
+  .dots span { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #aaa; margin: 0 2px; animation: blink 1.2s infinite; }
+  .dots span:nth-child(2) { animation-delay: .2s; }
+  .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+  #input-row { padding: 12px 14px; border-top: 1px solid #f0f0eb; background: #fafaf8; display: flex; gap: 8px; align-items: flex-end; }
+  #chat-input { flex: 1; font-size: 14px; padding: 9px 12px; border: 1px solid #ddd; border-radius: 10px; background: #fff; color: #1a1a1a; resize: none; min-height: 40px; max-height: 100px; line-height: 1.5; outline: none; }
+  #chat-input:focus { border-color: #534AB7; }
+  #send-btn { padding: 9px 16px; font-size: 14px; border-radius: 10px; background: #534AB7; color: #fff; border: none; cursor: pointer; font-weight: 500; }
+  #send-btn:hover { background: #3C3489; }
+  #send-btn:disabled { opacity: .45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div class="icon">🎨</div>
+    <div>
+      <h1>Mascot Pose Generator</h1>
+      <p>สร้างภาพ mascot ท่าทางต่างๆ ด้วย AI</p>
+    </div>
+    <div id="status">รอภาพ mascot</div>
+  </div>
+
+  <div id="setup">
+    <label>ภาพ mascot ต้นฉบับ:</label>
+    <button id="upload-btn" onclick="document.getElementById('upload-input').click()">
+      📎 อัปโหลดภาพ
+    </button>
+    <input id="upload-input" type="file" accept="image/*" onchange="handleUpload(event)" />
+    <img id="ref-thumb" alt="mascot reference" />
+  </div>
+
+  <div id="messages">
+    <div class="msg bot">
+      <div class="avatar">🤖</div>
+      <div>
+        <div class="bubble">
+          สวัสดีค่ะ! อัปโหลดภาพ mascot ต้นฉบับก่อน แล้วบอกท่าทางที่ต้องการได้เลยค่ะ 🎨
+        </div>
+        <div class="chips">
+          <div class="chip" onclick="usePreset('กำลังวิ่งอยู่')">🏃 กำลังวิ่ง</div>
+          <div class="chip" onclick="usePreset('โบกมือทักทาย ยิ้มแย้ม')">👋 ทักทาย</div>
+          <div class="chip" onclick="usePreset('กำลังคิด เอามือจับคาง')">🤔 กำลังคิด</div>
+          <div class="chip" onclick="usePreset('ชูนิ้วโป้ง แสดงความดีใจ')">👍 ยอดเยี่ยม</div>
+          <div class="chip" onclick="usePreset('นั่งทำงานหน้าคอมพิวเตอร์')">💻 ทำงาน</div>
+          <div class="chip" onclick="usePreset('กระโดดโลดเต้นด้วยความดีใจ')">🎉 ดีใจ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="input-row">
+    <textarea id="chat-input" placeholder="บอกท่าทางที่ต้องการ..." rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
+    <button id="send-btn" onclick="sendMessage()">ส่ง →</button>
+  </div>
+</div>
+
+<script>
+let refBase64 = null;
+let busy = false;
+
+const statusEl = document.getElementById('status');
+const refThumb = document.getElementById('ref-thumb');
+const messagesEl = document.getElementById('messages');
+const chatInput = document.getElementById('chat-input');
+const sendBtn = document.getElementById('send-btn');
+
+function handleUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const dataUrl = ev.target.result;
+    refBase64 = dataUrl.split(',')[1];
+    refThumb.src = dataUrl;
+    refThumb.style.display = 'block';
+    statusEl.textContent = 'พร้อมใช้งาน ✓';
+    statusEl.className = 'ready';
+    addBotMsg('อัปโหลดภาพเรียบร้อยค่ะ! 🎉 ตอนนี้บอกท่าทางที่ต้องการได้เลย');
+  };
+  reader.readAsDataURL(file);
+}
+
+function usePreset(text) {
+  chatInput.value = text;
+  chatInput.focus();
+}
+
+function addUserMsg(text) {
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML = `<div class="avatar">👤</div><div class="bubble">${text}</div>`;
+  messagesEl.appendChild(el);
+  scroll();
+}
+
+function addBotMsg(html) {
+  const el = document.createElement('div');
+  el.className = 'msg bot';
+  el.innerHTML = `<div class="avatar">🤖</div><div>${html}</div>`;
+  messagesEl.appendChild(el);
+  scroll();
+  return el;
+}
+
+function addLoading() {
+  const el = document.createElement('div');
+  el.className = 'msg bot';
+  el.id = 'loading';
+  el.innerHTML = `<div class="avatar">🤖</div><div class="bubble"><div class="dots"><span></span><span></span><span></span></div> กำลังเจนภาพ...</div>`;
+  messagesEl.appendChild(el);
+  scroll();
+}
+
+function removeLoading() {
+  document.getElementById('loading')?.remove();
+}
+
+function scroll() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+async function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text || busy) return;
+  if (!refBase64) { addBotMsg('<div class="bubble">⚠️ กรุณาอัปโหลดภาพ mascot ก่อนนะคะ</div>'); return; }
+
+  busy = true;
+  sendBtn.disabled = true;
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+
+  addUserMsg(text);
+  addLoading();
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pose_description: text, style_reference_base64: refBase64 })
+    });
+
+    removeLoading();
+
+    if (!res.ok) {
+      const err = await res.json();
+      addBotMsg(`<div class="bubble">❌ เกิดข้อผิดพลาด: ${err.detail || 'ไม่ทราบสาเหตุ'}</div>`);
+      return;
+    }
+
+    const data = await res.json();
+    const images = data.images || [];
+
+    if (images.length === 0) {
+      addBotMsg('<div class="bubble">⚠️ ไม่ได้รับภาพจาก Freepik กรุณาลองใหม่ค่ะ</div>');
+      return;
+    }
+
+    const img = images[0];
+    const src = img.url || (img.base64 ? `data:image/webp;base64,${img.base64}` : null);
+
+    if (!src) {
+      addBotMsg('<div class="bubble">⚠️ รูปแบบภาพไม่รองรับ กรุณาลองใหม่ค่ะ</div>');
+      return;
+    }
+
+    addBotMsg(`
+      <div class="bubble">เจนเสร็จแล้วค่ะ! ✨</div>
+      <img class="gen-img" src="${src}" alt="generated mascot" />
+      <div class="prompt-used">Prompt: ${data.prompt_used}</div>
+    `);
+
+  } catch (err) {
+    removeLoading();
+    addBotMsg(`<div class="bubble">❌ ${err.message}</div>`);
+  } finally {
+    busy = false;
+    sendBtn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
