@@ -26,7 +26,7 @@ class GenerateRequest(BaseModel):
     style_reference_mime: Optional[str] = "image/png"
 
 def build_prompt(pose_description: str) -> str:
-    return f"A mascot character {pose_description}, cartoon illustration style, clean white background, high quality, cute and friendly"
+    return pose_description
 
 async def create_nano_banana_task(prompt: str, style_reference_base64: Optional[str], mime_type: str = "image/png") -> str:
     if not FREEPIK_API_KEY:
