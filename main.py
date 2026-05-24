@@ -32,8 +32,8 @@ async def create_nano_banana_task(prompt: str, style_reference_base64: Optional[
 
     body = {
         "prompt": prompt,
-        "aspect_ratio": "square_1_1",
-        "resolution": "2k",
+        "aspect_ratio": "1:1",
+        "resolution": "1K",
     }
     if style_reference_base64:
         body["reference_image"] = style_reference_base64
