@@ -26,23 +26,21 @@ class GenerateRequest(BaseModel):
 def build_prompt(pose_description: str) -> str:
     return f"A mascot character {pose_description}, cartoon illustration style, clean white background, high quality, cute and friendly"
 
-async def create_freepik_task(prompt: str, style_reference_base64: Optional[str]) -> str:
+async def create_nano_banana_task(prompt: str, style_reference_base64: Optional[str]) -> str:
     if not FREEPIK_API_KEY:
         raise HTTPException(status_code=500, detail="FREEPIK_API_KEY ยังไม่ได้ตั้งค่า")
 
     body = {
         "prompt": prompt,
-        "filter_nsfw": True,
         "aspect_ratio": "square_1_1",
         "resolution": "2k",
     }
     if style_reference_base64:
-        body["style_reference"] = style_reference_base64
-        body["adherence"] = 60
+        body["reference_image"] = style_reference_base64
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
-            "https://api.freepik.com/v1/ai/mystic",
+            "https://api.freepik.com/v1/ai/text-to-image/nano-banana-pro",
             headers={
                 "x-freepik-api-key": FREEPIK_API_KEY,
                 "content-type": "application/json",
@@ -54,12 +52,12 @@ async def create_freepik_task(prompt: str, style_reference_base64: Optional[str]
         data = resp.json()
         return data["data"]["task_id"]
 
-async def poll_freepik_task(task_id: str, max_tries: int = 30) -> list:
+async def poll_nano_banana_task(task_id: str, max_tries: int = 30) -> list:
     async with httpx.AsyncClient(timeout=10) as client:
         for _ in range(max_tries):
             await asyncio.sleep(3)
             resp = await client.get(
-                f"https://api.freepik.com/v1/ai/mystic/{task_id}",
+                f"https://api.freepik.com/v1/ai/text-to-image/nano-banana-pro/{task_id}",
                 headers={"x-freepik-api-key": FREEPIK_API_KEY}
             )
             resp.raise_for_status()
@@ -68,7 +66,7 @@ async def poll_freepik_task(task_id: str, max_tries: int = 30) -> list:
             if status == "COMPLETED":
                 return data["data"].get("generated", [])
             if status == "FAILED":
-                raise HTTPException(status_code=500, detail="Freepik task failed")
+                raise HTTPException(status_code=500, detail="Task failed")
     raise HTTPException(status_code=504, detail="หมดเวลารอ กรุณาลองใหม่")
 
 @app.get("/health")
@@ -78,8 +76,8 @@ async def health():
 @app.post("/api/generate")
 async def generate(req: GenerateRequest):
     eng_prompt = build_prompt(req.pose_description)
-    task_id = await create_freepik_task(eng_prompt, req.style_reference_base64)
-    images = await poll_freepik_task(task_id)
+    task_id = await create_nano_banana_task(eng_prompt, req.style_reference_base64)
+    images = await poll_nano_banana_task(task_id)
 
     if not images:
         raise HTTPException(status_code=500, detail="ไม่ได้รับภาพจาก Freepik")
@@ -89,7 +87,7 @@ async def generate(req: GenerateRequest):
         if isinstance(img, str):
             normalized.append({"url": img})
         elif isinstance(img, dict):
-            url = img.get("url") or img.get("base64") or img.get("src") or img.get("image")
+            url = img.get("url") or img.get("base64") or img.get("src")
             if url:
                 normalized.append({"url": url})
 
