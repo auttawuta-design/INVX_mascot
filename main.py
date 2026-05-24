@@ -32,24 +32,19 @@ async def generate_image_openai(prompt: str, style_reference_base64: Optional[st
 
     async with httpx.AsyncClient(timeout=60) as client:
         if style_reference_base64:
-            # ใช้ edits endpoint เมื่อมีภาพต้นฉบับ
             image_bytes = base64.b64decode(style_reference_base64)
             resp = await client.post(
                 "https://api.openai.com/v1/images/edits",
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-                files={
-                    "image": ("mascot.png", image_bytes, "image/png"),
-                },
+                files={"image": ("mascot.png", image_bytes, "image/png")},
                 data={
                     "model": "gpt-image-1",
                     "prompt": prompt,
                     "n": "1",
                     "size": "1024x1024",
-                    "response_format": "b64_json",
                 }
             )
         else:
-            # ใช้ generations endpoint เมื่อไม่มีภาพ
             resp = await client.post(
                 "https://api.openai.com/v1/images/generations",
                 headers={
@@ -61,7 +56,6 @@ async def generate_image_openai(prompt: str, style_reference_base64: Optional[st
                     "prompt": prompt,
                     "n": 1,
                     "size": "1024x1024",
-                    "response_format": "b64_json",
                 }
             )
 
@@ -69,8 +63,14 @@ async def generate_image_openai(prompt: str, style_reference_base64: Optional[st
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
 
         data = resp.json()
-        b64 = data["data"][0]["b64_json"]
-        return f"data:image/png;base64,{b64}"
+        img_data = data["data"][0]
+        
+        if img_data.get("b64_json"):
+            return f"data:image/png;base64,{img_data['b64_json']}"
+        elif img_data.get("url"):
+            return img_data["url"]
+        else:
+            raise HTTPException(status_code=500, detail="ไม่ได้รับภาพจาก OpenAI")
 
 @app.get("/health")
 async def health():
