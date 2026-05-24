@@ -105,9 +105,18 @@ async def generate(req: GenerateRequest):
     if not images:
         raise HTTPException(status_code=500, detail="ไม่ได้รับภาพจาก Freepik")
 
+    normalized = []
+    for img in images:
+        if isinstance(img, str):
+            normalized.append({"url": img})
+        elif isinstance(img, dict):
+            url = img.get("url") or img.get("base64") or img.get("src") or img.get("image")
+            if url:
+                normalized.append({"url": url})
+
     return {
         "prompt_used": eng_prompt,
-        "images": images,
+        "images": normalized if normalized else images,
     }
 
 
