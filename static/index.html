@@ -198,10 +198,18 @@ async function sendMessage() {
     }
 
     const img = images[0];
-    const src = img.url || (img.base64 ? `data:image/webp;base64,${img.base64}` : null);
+    let src = null;
+    if (typeof img === 'string') {
+      src = img.startsWith('http') ? img : `data:image/webp;base64,${img}`;
+    } else if (img && typeof img === 'object') {
+      if (img.url) src = img.url;
+      else if (img.base64) src = `data:image/webp;base64,${img.base64}`;
+      else if (img.src) src = img.src;
+      else if (img.image) src = img.image;
+    }
 
     if (!src) {
-      addBotMsg('<div class="bubble">⚠️ รูปแบบภาพไม่รองรับ กรุณาลองใหม่ค่ะ</div>');
+      addBotMsg(`<div class="bubble">⚠️ รูปแบบภาพไม่รองรับ: ${JSON.stringify(img)}</div>`);
       return;
     }
 
