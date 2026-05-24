@@ -18,7 +18,6 @@ app.add_middleware(
 )
 
 FREEPIK_API_KEY = os.getenv("FREEPIK_API_KEY", "")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # ── Models ──────────────────────────────────────────────────────────────────
 
@@ -31,38 +30,9 @@ class TaskStatusRequest(BaseModel):
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
-async def build_prompt_with_claude(pose_description: str) -> str:
-    """แปลงคำอธิบายท่าทาง (ไทย/อังกฤษ) เป็น prompt ภาษาอังกฤษสำหรับ Freepik"""
-    if not ANTHROPIC_API_KEY:
-        # fallback: ส่ง description ตรงๆ ถ้าไม่มี Anthropic key
-        return f"A mascot character {pose_description}, cartoon illustration style, clean background, high quality"
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 150,
-                "messages": [{
-                    "role": "user",
-                    "content": (
-                        "You are a prompt engineer for AI image generation. "
-                        "Convert this pose/action description into a concise English image generation prompt for a mascot character illustration. "
-                        "Keep it under 60 words. Include: the pose/action, cartoon illustration style, clean white background, high quality. "
-                        "Return only the prompt, nothing else.\n\n"
-                        f"Description: {pose_description}"
-                    )
-                }]
-            }
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["content"][0]["text"].strip()
+def build_prompt(pose_description: str) -> str:
+    """สร้าง prompt ภาษาอังกฤษจากคำอธิบายท่าทาง"""
+    return f"A mascot character {pose_description}, cartoon illustration style, clean white background, high quality, cute and friendly"
 
 
 async def create_freepik_task(prompt: str, style_reference_base64: Optional[str]) -> str:
@@ -128,7 +98,7 @@ async def health():
 @app.post("/api/generate")
 async def generate(req: GenerateRequest):
     """รับคำอธิบายท่าทาง → แปลง prompt → เจนภาพ → คืน URL ภาพ"""
-    eng_prompt = await build_prompt_with_claude(req.pose_description)
+    eng_prompt = build_prompt(req.pose_description)
     task_id = await create_freepik_task(eng_prompt, req.style_reference_base64)
     images = await poll_freepik_task(task_id)
 
