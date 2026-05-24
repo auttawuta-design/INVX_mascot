@@ -1,4 +1,5 @@
 import os
+import base64
 import httpx
 import asyncio
 from fastapi import FastAPI, HTTPException
@@ -22,11 +23,12 @@ FREEPIK_API_KEY = os.getenv("FREEPIK_API_KEY", "")
 class GenerateRequest(BaseModel):
     pose_description: str
     style_reference_base64: Optional[str] = None
+    style_reference_mime: Optional[str] = "image/png"
 
 def build_prompt(pose_description: str) -> str:
     return f"A mascot character {pose_description}, cartoon illustration style, clean white background, high quality, cute and friendly"
 
-async def create_nano_banana_task(prompt: str, style_reference_base64: Optional[str]) -> str:
+async def create_nano_banana_task(prompt: str, style_reference_base64: Optional[str], mime_type: str = "image/png") -> str:
     if not FREEPIK_API_KEY:
         raise HTTPException(status_code=500, detail="FREEPIK_API_KEY ยังไม่ได้ตั้งค่า")
 
@@ -35,8 +37,17 @@ async def create_nano_banana_task(prompt: str, style_reference_base64: Optional[
         "aspect_ratio": "1:1",
         "resolution": "1K",
     }
+
     if style_reference_base64:
-        body["reference_image"] = style_reference_base64
+        # API ต้องการ data URI format
+        data_uri = f"data:{mime_type};base64,{style_reference_base64}"
+        body["reference_images"] = [
+            {
+                "image": data_uri,
+                "text": "This is the mascot character. Keep the same character design, colors, and style. Only change the pose/action.",
+                "mime_type": mime_type,
+            }
+        ]
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
@@ -76,7 +87,7 @@ async def health():
 @app.post("/api/generate")
 async def generate(req: GenerateRequest):
     eng_prompt = build_prompt(req.pose_description)
-    task_id = await create_nano_banana_task(eng_prompt, req.style_reference_base64)
+    task_id = await create_nano_banana_task(eng_prompt, req.style_reference_base64, req.style_reference_mime or "image/png")
     images = await poll_nano_banana_task(task_id)
 
     if not images:
